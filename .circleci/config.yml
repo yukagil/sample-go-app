@@ -1,0 +1,45 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.11
+        environment:
+          GO111MODULE: "on"
+
+    environment:
+      ENV: production
+      TEST_RESULTS: /tmp/test-results
+
+    working_directory: /go/src/github.com/yukagil/sample-go-app
+
+    steps:
+      - checkout
+      - run: mkdir -p $TEST_RESULTS
+
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+
+      - run:
+          name: Run unit tests
+          command: gotestsum --junitfile $TEST_RESULTS/go-test-report.xml
+
+      - run: 
+          name: Build Image
+          command: make build-linux # FIXME
+
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+      - run:
+          name: Push Docker Image
+          command: echo "push docker image" && stat go_server
+
+      - store_artifacts:
+          path: $TEST_RESULTS
+          destination: raw-test-output
+
+      - store_test_results:
+          path: $TEST_RESULTS
