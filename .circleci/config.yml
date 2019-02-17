@@ -1,12 +1,15 @@
-version: 2
+version: 2.1
+executors:
+    default:
+      working_directory: /go/src/github.com/yukagil/sample-go-app
+      docker:
+        - image: circleci/golang:1.11
+          environment:
+            GO111MODULE: "on"
 jobs:
   build:
-    docker:
-      - image: circleci/golang:1.11
-        environment:
-          GO111MODULE: "on"
-    environment:
-      ENV: production
+    executor:
+      name: default
     working_directory: /go/src/github.com/yukagil/sample-go-app
     steps:
       - checkout
@@ -36,21 +39,48 @@ jobs:
             - ./*
 
   upload_image:
-    docker:
-      - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/yukagil/sample-go-app
+    executor:
+      name: default
     steps:
       - attach_workspace:
           at: /go/src/github.com/yukagil/sample-go-app
       - run:
           name: Push Docker Image
-          command: echo "push docker image" && stat go_server
+          command: stat go_server
+
+  deploy:
+    parameters:
+      env:
+        type: enum
+        enum: ["dev", "prod"]
+    executor:
+      name: default
+    steps:
+      - run:
+          name: Deploy to << parameters.env >>
+          command: echo "<< parameters.env >>"
+      
 
 workflows:
-  version: 2
   build-and-deploy:
     jobs:
       - build
       - upload_image:
           requires:
-          - build
+            - build
+      - deploy:
+          name: deploy_dev
+          env: dev
+          requires:
+            - upload_image
+          filters:
+            branches:
+              only: develop
+      - deploy:
+          name: deploy_prod
+          env: prod
+          requires:
+            - upload_image
+          filters:
+            branches:
+              only: master
