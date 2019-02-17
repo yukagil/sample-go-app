@@ -5,41 +5,52 @@ jobs:
       - image: circleci/golang:1.11
         environment:
           GO111MODULE: "on"
-
     environment:
       ENV: production
-
     working_directory: /go/src/github.com/yukagil/sample-go-app
-
     steps:
       - checkout
-
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
       - run:
           name: Run unit tests
           command: |
             mkdir -p /tmp/test-results
             gotestsum --junitfile /tmp/test-results/go-test-report.xml
-
       - run: 
           name: Build Image
           command: make build-linux
-
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+      - persist_to_workspace:
+          root: /go/src/github.com/yukagil/sample-go-app
+          paths:
+            - ./*
 
+  upload_image:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/yukagil/sample-go-app
+    steps:
+      - attach_workspace:
+          at: /go/src/github.com/yukagil/sample-go-app
       - run:
           name: Push Docker Image
           command: echo "push docker image" && stat go_server
 
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-
-      - store_test_results:
-          path: /tmp/test-results
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+      - build
+      - upload_image:
+          requires:
+          - build
