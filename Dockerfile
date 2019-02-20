@@ -1,8 +1,18 @@
-FROM golang:1.11-alpine as build-env
-ADD . /go/src/go-server
-RUN go install go-server
+FROM golang:1.11-alpine as build-base
+ENV GO111MODULE=on
+WORKDIR /go/src/github.com/yukagil/sample-go-app
+COPY go.mod .
+COPY go.sum .
+RUN apk add --no-cache git
+RUN go mod download
+
+
+FROM build-base as build-env
+COPY . .
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o go-server
+
 
 FROM alpine:3.9
-COPY --from=build-env /go/bin/go-server .
+COPY --from=build-env /go/src/github.com/yukagil/sample-go-app/go-server .
 ENV PORT 8080
-CMD ["./go-server"]
+ENTRYPOINT ["./go-server"]
