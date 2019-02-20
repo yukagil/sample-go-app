@@ -7,7 +7,7 @@ executors:
           environment:
             GO111MODULE: "on"
 jobs:
-  build:
+  test:
     executor:
       name: default
     working_directory: /go/src/github.com/yukagil/sample-go-app
@@ -17,36 +17,53 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run:
-          name: Run unit tests
-          command: |
-            mkdir -p /tmp/test-results
-            gotestsum --junitfile /tmp/test-results/go-test-report.xml
-      - run: 
-          name: Build Image
-          command: make build-linux
+          name: Vendoring
+          command: go mod download
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+      - run:
+          name: Run unit tests
+          command: |
+            mkdir -p /tmp/test-results
+            gotestsum --junitfile /tmp/test-results/go-test-report.xml
+      
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
       - store_test_results:
           path: /tmp/test-results
       - persist_to_workspace:
-          root: /go/src/github.com/yukagil/sample-go-app
+          root: .
           paths:
-            - ./*
+            - .
 
-  upload_image:
-    executor:
-      name: default
+  build_and_upload_image:
+    docker:
+      - image: google/cloud-sdk
+    environment:
+      GCP_PROJECT_ID: packettoys-prod
+      IMAGE_NANE: hello-app
     steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
       - attach_workspace:
-          at: /go/src/github.com/yukagil/sample-go-app
+          at: .
+          
       - run:
-          name: Push Docker Image
-          command: stat go_server
+          name: gcloud auth
+          command: |
+            echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
+            gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
+            gcloud --quiet auth configure-docker
+      - run:
+          name: Build Image
+          command: docker build -t gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM} .
+      - run:
+          name: Push Image
+          command: docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM}
+
 
   deploy:
     parameters:
@@ -64,15 +81,15 @@ jobs:
 workflows:
   build-and-deploy:
     jobs:
-      - build
-      - upload_image:
+      - test
+      - build_and_upload_image:
           requires:
-            - build
+            - test
       - deploy:
           name: deploy_dev
           env: dev
           requires:
-            - upload_image
+            - build_and_upload_image
           filters:
             branches:
               only: develop
@@ -80,7 +97,7 @@ workflows:
           name: deploy_prod
           env: prod
           requires:
-            - upload_image
+            - build_and_upload_image
           filters:
             branches:
               only: master
