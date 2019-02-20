@@ -1,12 +1,9 @@
 GOFILES = $(shell find . -name '*.go' -not -path './vendor/*')
-BINARY_NANE = go_server
+BINARY_NANE = go-server
 
 run: $(GOFILES)
 	@go build -o $(BINARY_NANE) ./...
 	@./$(BINARY_NANE)
-
-build-linux: $(GOFILES)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(BINARY_NANE) -v
 
 test:
 	@go test -v ./...
