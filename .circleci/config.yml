@@ -39,12 +39,17 @@ jobs:
           paths:
             - .
 
-  build_and_upload_image:
+  build_and_deploy:
     docker:
       - image: google/cloud-sdk
     environment:
       GCP_PROJECT_ID: packettoys-prod
+      GCP_COMPUTE_ZONE: us-west1-b
       IMAGE_NANE: hello-app
+    parameters:
+      deploy_target:
+        type: enum
+        enum: ["dev", "prod"]
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
@@ -52,52 +57,45 @@ jobs:
           at: .
           
       - run:
-          name: gcloud auth
+          name: Setup Google Cloud SDK
           command: |
             echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
             gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
             gcloud --quiet auth configure-docker
+            gcloud config set project ${GCP_PROJECT_ID}
+            gcloud config set compute/zone ${GCP_COMPUTE_ZONE}
+            gcloud container clusters get-credentials ${GCP_PROJECT_ID}
       - run:
           name: Build Image
           command: docker build -t gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM} .
       - run:
           name: Push Image
           command: docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM}
-
-
-  deploy:
-    parameters:
-      env:
-        type: enum
-        enum: ["dev", "prod"]
-    executor:
-      name: default
-    steps:
       - run:
-          name: Deploy to << parameters.env >>
-          command: echo "<< parameters.env >>"
+          name: Deploy to << parameters.deploy_target >>
+          command: |
+              echo "<< parameters.deploy_target >>"
+              kubectl set image deployment/hello-server hello-server=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM}
+      - run: kubectl get service hello-server
       
 
 workflows:
   build-and-deploy:
     jobs:
       - test
-      - build_and_upload_image:
+      - build_and_deploy:
+          name: deploy_dev
+          deploy_target: dev
           requires:
             - test
-      - deploy:
-          name: deploy_dev
-          env: dev
-          requires:
-            - build_and_upload_image
           filters:
             branches:
               only: develop
-      - deploy:
+      - build_and_deploy:
           name: deploy_prod
-          env: prod
+          deploy_target: prod
           requires:
-            - build_and_upload_image
+            - test
           filters:
             branches:
               only: master
