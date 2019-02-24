@@ -1,0 +1,20 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: hello-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-server
+  template:
+    metadata:
+      labels:
+        app: hello-server
+        varsion: v1
+    spec:
+      containers:
+      - name: hello-server
+        image: gcr.io/packettoys-prod/hello-app
+        ports:
+        - containerPort: 8080
