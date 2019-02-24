@@ -67,10 +67,12 @@ jobs:
             gcloud container clusters get-credentials ${GCP_PROJECT_ID}
       - run:
           name: Build Image
-          command: docker build -t gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM} .
+          command: |
+            docker build -t gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM} .
+            docker tag gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:latest
       - run:
           name: Push Image
-          command: docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}:${CIRCLE_BUILD_NUM}
+          command: docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NANE}
       - run:
           name: Deploy to << parameters.deploy_target >>
           command: |
