@@ -25,5 +25,5 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "No pain, no gain.")
+	fmt.Fprint(w, "Do, or do not. There is no 'try’.")
 }
